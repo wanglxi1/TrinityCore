@@ -9,6 +9,7 @@ before_install:
   - echo "yes" | sudo add-apt-repository ppa:kalakris/cmake
   - echo "yes" | sudo add-apt-repository ppa:boost-latest/ppa
   - echo "yes" | sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+  - echo "yes" | sudo add-apt-repository ppa:chris-lea/zeromq
   - sudo apt-get -qq update
   - sudo apt-get -qq install build-essential libtool gcc-4.8 g++-4.8 make cmake openssl
   - sudo apt-get -qq install libssl-dev libmysqlclient-dev libmysql++-dev libreadline6-dev zlib1g-dev libbz2-dev libzmq3-dev
