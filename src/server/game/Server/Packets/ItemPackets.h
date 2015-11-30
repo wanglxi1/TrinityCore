@@ -32,6 +32,9 @@ namespace WorldPackets
         {
             uint8 Context = 0;
             std::vector<int32> BonusListIDs;
+
+            bool operator==(ItemBonusInstanceData const& r) const;
+            bool operator!=(ItemBonusInstanceData const& r) const { return !(*this == r); }
         };
 
         struct ItemInstance
@@ -45,6 +48,9 @@ namespace WorldPackets
             uint32 RandomPropertiesID = 0;
             Optional<ItemBonusInstanceData> ItemBonus;
             Optional<CompactArray<int32>> Modifications;
+
+            bool operator==(ItemInstance const& r) const;
+            bool operator!=(ItemInstance const& r) const { return !(*this == r); }
         };
 
         class BuyBackItem final : public ClientPacket
@@ -105,6 +111,60 @@ namespace WorldPackets
             GetItemPurchaseData(WorldPacket&& packet) : ClientPacket(CMSG_GET_ITEM_PURCHASE_DATA, std::move(packet)) { }
 
             void Read() override;
+
+            ObjectGuid ItemGUID;
+        };
+
+        struct ItemPurchaseRefundItem
+        {
+            int32 ItemID = 0;
+            int32 ItemCount = 0;
+        };
+
+        struct ItemPurchaseRefundCurrency
+        {
+            int32 CurrencyID = 0;
+            int32 CurrencyCount = 0;
+        };
+
+        struct ItemPurchaseContents
+        {
+            uint32 Money = 0;
+            ItemPurchaseRefundItem Items[5] = { };
+            ItemPurchaseRefundCurrency Currencies[5] = { };
+        };
+
+        class SetItemPurchaseData final : public ServerPacket
+        {
+        public:
+            SetItemPurchaseData() : ServerPacket(SMSG_SET_ITEM_PURCHASE_DATA, 4 + 4 + 4 + 5 * (4 + 4) + 5 * (4 + 4) + 16) { }
+
+            WorldPacket const* Write() override;
+
+            uint32 PurchaseTime = 0;
+            uint32 Flags = 0;
+            ItemPurchaseContents Contents;
+            ObjectGuid ItemGUID;
+        };
+
+        class ItemPurchaseRefundResult final : public ServerPacket
+        {
+        public:
+            ItemPurchaseRefundResult() : ServerPacket(SMSG_ITEM_PURCHASE_REFUND_RESULT, 1 + 4 + 5 * (4 + 4) + 5 * (4 + 4) + 16) { }
+
+            WorldPacket const* Write() override;
+
+            uint8 Result = 0;
+            ObjectGuid ItemGUID;
+            Optional<ItemPurchaseContents> Contents;
+        };
+
+        class ItemExpirePurchaseRefund final : public ServerPacket
+        {
+        public:
+            ItemExpirePurchaseRefund() : ServerPacket(SMSG_ITEM_EXPIRE_PURCHASE_REFUND, 16) { }
+
+            WorldPacket const* Write() override;
 
             ObjectGuid ItemGUID;
         };
@@ -396,6 +456,40 @@ namespace WorldPackets
             ObjectGuid ItemGuid;
             uint32 DurationLeft = 0;
             uint32 Slot = 0;
+        };
+
+        struct TransmogrifyItem
+        {
+            Optional<ObjectGuid> SrcItemGUID;
+            Optional<ObjectGuid> SrcVoidItemGUID;
+            ItemInstance Item;
+            uint32 Slot = 0;
+        };
+
+        class TransmogrifyItems final : public ClientPacket
+        {
+        public:
+            enum
+            {
+                MAX_TRANSMOGRIFY_ITEMS = 11
+            };
+
+            TransmogrifyItems(WorldPacket&& packet) : ClientPacket(CMSG_TRANSMOGRIFY_ITEMS, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid Npc;
+            Array<TransmogrifyItem, MAX_TRANSMOGRIFY_ITEMS> Items;
+        };
+
+        class UseCritterItem final : public ClientPacket
+        {
+        public:
+            UseCritterItem(WorldPacket&& packet) : ClientPacket(CMSG_USE_CRITTER_ITEM, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid ItemGuid;
         };
 
         ByteBuffer& operator>>(ByteBuffer& data, InvUpdate& invUpdate);

@@ -24,7 +24,7 @@
 #define __WORLD_H
 
 #include "Common.h"
-#include "Commands.h"
+#include "Realm/Realm.h"
 #include "ObjectGuid.h"
 #include "Timer.h"
 #include "SharedDefines.h"
@@ -176,6 +176,8 @@ enum WorldBoolConfigs
     CONFIG_CALCULATE_GAMEOBJECT_ZONE_AREA_DATA,
     CONFIG_FEATURE_SYSTEM_BPAY_STORE_ENABLED,
     CONFIG_FEATURE_SYSTEM_CHARACTER_UNDELETE_ENABLED,
+    CONFIG_RESET_DUEL_COOLDOWNS,
+    CONFIG_RESET_DUEL_HEALTH_MANA,
     BOOL_CONFIG_VALUE_COUNT
 };
 
@@ -394,6 +396,7 @@ enum Rates
     RATE_DROP_ITEM_REFERENCED_AMOUNT,
     RATE_DROP_MONEY,
     RATE_XP_KILL,
+    RATE_XP_BG_KILL,
     RATE_XP_QUEST,
     RATE_XP_GUILD_MODIFIER,
     RATE_XP_EXPLORE,
@@ -453,18 +456,6 @@ enum BillingPlanFlags
     SESSION_TIME_MIXTURE    = 0x20,
     SESSION_RESTRICTED      = 0x40,
     SESSION_ENABLE_CAIS     = 0x80
-};
-
-/// Type of server, this is values from second column of Cfg_Configs.dbc
-enum RealmType
-{
-    REALM_TYPE_NORMAL       = 0,
-    REALM_TYPE_PVP          = 1,
-    REALM_TYPE_NORMAL2      = 4,
-    REALM_TYPE_RP           = 6,
-    REALM_TYPE_RPPVP        = 8,
-    REALM_TYPE_FFA_PVP      = 16                            // custom, free for all pvp mode like arena PvP in all zones except rest activated places and sanctuaries
-                                                            // replaced by REALM_PVP in realm list
 };
 
 enum RealmZone
@@ -551,6 +542,7 @@ typedef std::unordered_map<uint32, WorldSession*> SessionMap;
 struct CharacterInfo
 {
     std::string Name;
+    uint32 AccountId;
     uint8 Class;
     uint8 Race;
     uint8 Sex;
@@ -777,7 +769,7 @@ class World
         void UpdateAreaDependentAuras();
 
         CharacterInfo const* GetCharacterInfo(ObjectGuid const& guid) const;
-        void AddCharacterInfo(ObjectGuid const& guid, std::string const& name, uint8 gender, uint8 race, uint8 playerClass, uint8 level, bool isDeleted);
+        void AddCharacterInfo(ObjectGuid const& guid, uint32 accountId, std::string const& name, uint8 gender, uint8 race, uint8 playerClass, uint8 level, bool isDeleted);
         void DeleteCharacterInfo(ObjectGuid const& guid) { _characterInfoStore.erase(guid); }
         bool HasCharacterInfo(ObjectGuid const& guid) { return _characterInfoStore.find(guid) != _characterInfoStore.end(); }
         void UpdateCharacterInfo(ObjectGuid const& guid, std::string const& name, uint8 gender = GENDER_NONE, uint8 race = RACE_NONE);
@@ -788,8 +780,9 @@ class World
         void   SetCleaningFlags(uint32 flags) { m_CleaningFlags = flags; }
         void   ResetEventSeasonalQuests(uint16 event_id);
 
-        void UpdatePhaseDefinitions();
         void ReloadRBAC();
+
+        void RemoveOldCorpses();
 
     protected:
         void _UpdateGameTime();
@@ -901,7 +894,6 @@ class World
         std::deque<PreparedQueryResultFuture> m_realmCharCallbacks;
 };
 
-extern Battlenet::RealmHandle realmHandle;
 extern Realm realm;
 uint32 GetVirtualRealmAddress();
 

@@ -21,10 +21,8 @@
 
 #include "Common.h"
 #include "ByteBuffer.h"
-#include <boost/functional/hash.hpp>
 #include <type_traits>
 #include <functional>
-#include <unordered_set>
 
 enum TypeID
 {
@@ -204,7 +202,6 @@ class ObjectGuid
         static typename std::enable_if<ObjectGuidTraits<type>::MapSpecific, ObjectGuid>::type Create(uint16 mapId, uint32 entry, LowType counter) { return MapSpecific(type, 0, mapId, 0, entry, counter); }
 
         ObjectGuid() : _low(0), _high(0) { }
-        ObjectGuid(ObjectGuid const&) = default;
 
         std::vector<uint8> GetRawValue() const;
         void SetRawValue(std::vector<uint8> const& guid);

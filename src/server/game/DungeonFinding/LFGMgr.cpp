@@ -583,7 +583,7 @@ void LFGMgr::JoinLfg(Player* player, uint8 roles, LfgDungeonSet& dungeons, const
 
    @param[in]     guid Player or group guid
 */
-void LFGMgr::LeaveLfg(ObjectGuid guid)
+void LFGMgr::LeaveLfg(ObjectGuid guid, bool disconnected)
 {
     ObjectGuid gguid = guid.IsParty() ? guid : GetGroup(guid);
 
@@ -644,7 +644,7 @@ void LFGMgr::LeaveLfg(ObjectGuid guid)
             break;
         case LFG_STATE_DUNGEON:
         case LFG_STATE_FINISHED_DUNGEON:
-            if (guid != gguid) // Player
+            if (guid != gguid && !disconnected) // Player
                 SetState(guid, LFG_STATE_NONE);
             break;
     }
@@ -1272,14 +1272,6 @@ void LFGMgr::TeleportPlayer(Player* player, bool out, bool fromOpcode /*= false*
             player->GetName().c_str(), player->GetMapId(), uint32(dungeon->map));
         if (player->GetMapId() == uint32(dungeon->map))
             player->TeleportToBGEntryPoint();
-
-        // in the case were we are the last in lfggroup then we must disband when porting out of the instance
-        if (group && group->GetMembersCount() == 1)
-        {
-            group->Disband();
-            TC_LOG_DEBUG("lfg.teleport", "Player %s is last in lfggroup so we disband the group.",
-                player->GetName().c_str());
-        }
 
         return;
     }

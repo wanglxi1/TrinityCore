@@ -21,15 +21,23 @@
 #include "DB2Store.h"
 #include "DB2Structure.h"
 #include "SharedDefines.h"
+#include <boost/regex.hpp>
 #include <array>
 
+extern DB2Storage<AchievementEntry>                     sAchievementStore;
 extern DB2Storage<AuctionHouseEntry>                    sAuctionHouseStore;
 extern DB2Storage<BarberShopStyleEntry>                 sBarberShopStyleStore;
+extern DB2Storage<BattlePetBreedQualityEntry>           sBattlePetBreedQualityStore;
+extern DB2Storage<BattlePetBreedStateEntry>             sBattlePetBreedStateStore;
+extern DB2Storage<BattlePetSpeciesEntry>                sBattlePetSpeciesStore;
+extern DB2Storage<BattlePetSpeciesStateEntry>           sBattlePetSpeciesStateStore;
 extern DB2Storage<BroadcastTextEntry>                   sBroadcastTextStore;
 extern DB2Storage<CharStartOutfitEntry>                 sCharStartOutfitStore;
 extern DB2Storage<CinematicSequencesEntry>              sCinematicSequencesStore;
 extern DB2Storage<CreatureDisplayInfoEntry>             sCreatureDisplayInfoStore;
 extern DB2Storage<CreatureTypeEntry>                    sCreatureTypeStore;
+extern DB2Storage<CriteriaEntry>                        sCriteriaStore;
+extern DB2Storage<CriteriaTreeEntry>                    sCriteriaTreeStore;
 extern DB2Storage<CurrencyTypesEntry>                   sCurrencyTypesStore;
 extern DB2Storage<DestructibleModelDataEntry>           sDestructibleModelDataStore;
 extern DB2Storage<DurabilityQualityEntry>               sDurabilityQualityStore;
@@ -48,6 +56,7 @@ extern DB2Storage<GarrSiteLevelEntry>                   sGarrSiteLevelStore;
 extern DB2Storage<GarrSiteLevelPlotInstEntry>           sGarrSiteLevelPlotInstStore;
 extern DB2Storage<GlyphSlotEntry>                       sGlyphSlotStore;
 extern DB2Storage<GuildPerkSpellsEntry>                 sGuildPerkSpellsStore;
+extern DB2Storage<HeirloomEntry>                        sHeirloomStore;
 extern DB2Storage<HolidaysEntry>                        sHolidaysStore;
 extern DB2Storage<ImportPriceArmorEntry>                sImportPriceArmorStore;
 extern DB2Storage<ImportPriceQualityEntry>              sImportPriceQualityStore;
@@ -66,7 +75,9 @@ extern DB2Storage<ItemRandomSuffixEntry>                sItemRandomSuffixStore;
 extern DB2Storage<ItemSparseEntry>                      sItemSparseStore;
 extern DB2Storage<ItemSpecEntry>                        sItemSpecStore;
 extern DB2Storage<ItemSpecOverrideEntry>                sItemSpecOverrideStore;
+extern DB2Storage<ItemToBattlePetSpeciesEntry>          sItemToBattlePetSpeciesStore;
 extern DB2Storage<MailTemplateEntry>                    sMailTemplateStore;
+extern DB2Storage<ModifierTreeEntry>                    sModifierTreeStore;
 extern DB2Storage<MountCapabilityEntry>                 sMountCapabilityStore;
 extern DB2Storage<OverrideSpellDataEntry>               sOverrideSpellDataStore;
 extern DB2Storage<QuestMoneyRewardEntry>                sQuestMoneyRewardStore;
@@ -92,6 +103,7 @@ extern DB2Storage<SpellXSpellVisualEntry>               sSpellXSpellVisualStore;
 extern DB2Storage<TaxiNodesEntry>                       sTaxiNodesStore;
 extern DB2Storage<TaxiPathEntry>                        sTaxiPathStore;
 extern DB2Storage<TotemCategoryEntry>                   sTotemCategoryStore;
+extern DB2Storage<ToyEntry>                             sToyStore;
 extern DB2Storage<UnitPowerBarEntry>                    sUnitPowerBarStore;
 extern DB2Storage<WorldMapOverlayEntry>                 sWorldMapOverlayStore;
 
@@ -99,7 +111,6 @@ extern TaxiMask                                         sTaxiNodesMask;
 extern TaxiMask                                         sOldContinentsNodesMask;
 extern TaxiMask                                         sHordeTaxiNodesMask;
 extern TaxiMask                                         sAllianceTaxiNodesMask;
-extern TaxiMask                                         sDeathKnightTaxiNodesMask;
 extern TaxiPathSetBySource                              sTaxiPathSetBySource;
 extern TaxiPathNodesByPath                              sTaxiPathNodesByPath;
 
@@ -141,11 +152,14 @@ public:
     typedef std::set<MountTypeXCapabilityEntry const*, MountTypeXCapabilityEntryComparator> MountTypeXCapabilitySet;
     typedef std::unordered_map<uint32, MountTypeXCapabilitySet> MountCapabilitiesByTypeContainer;
     typedef std::unordered_map<uint32, std::array<std::vector<NameGenEntry const*>, 2>> NameGenContainer;
+    typedef std::array<std::vector<boost::regex>, TOTAL_LOCALES + 1> NameValidationRegexContainer;
     typedef std::unordered_map<uint32, std::set<uint32>> PhaseGroupContainer;
     typedef std::unordered_map<uint32, std::vector<QuestPackageItemEntry const*>> QuestPackageItemContainer;
     typedef std::unordered_map<uint32, std::vector<SpecializationSpellsEntry const*>> SpecializationSpellsContainer;
     typedef std::unordered_map<uint32, std::vector<SpellPowerEntry const*>> SpellPowerContainer;
     typedef std::unordered_map<uint32, std::unordered_map<uint32, std::vector<SpellPowerEntry const*>>> SpellPowerDifficultyContainer;
+    typedef std::vector<uint32> ToyItemIdsContainer;
+    typedef std::unordered_map<uint32, HeirloomEntry const*> HeirloomItemsContainer;
 
     static DB2Manager& Instance()
     {
@@ -153,7 +167,7 @@ public:
         return instance;
     }
 
-    void LoadStores(std::string const& dataPath);
+    void LoadStores(std::string const& dataPath, uint32 defaultLocale);
     DB2StorageBase const* GetStorage(uint32 type) const;
 
     void LoadHotfixData();
@@ -174,11 +188,14 @@ public:
     MountEntry const* GetMount(uint32 spellId) const;
     MountEntry const* GetMountById(uint32 id) const;
     MountTypeXCapabilitySet const* GetMountCapabilities(uint32 mountType) const;
+    ResponseCodes ValidateName(std::string const& name, LocaleConstant locale) const;
     std::vector<QuestPackageItemEntry const*> const* GetQuestPackageItems(uint32 questPackageID) const;
     uint32 GetQuestUniqueBitFlag(uint32 questId);
     std::set<uint32> GetPhasesForGroup(uint32 group) const;
     std::vector<SpecializationSpellsEntry const*> const* GetSpecializationSpells(uint32 specId) const;
     std::vector<SpellPowerEntry const*> GetSpellPowers(uint32 spellId, Difficulty difficulty = DIFFICULTY_NONE, bool* hasDifficultyPowers = nullptr) const;
+    bool GetToyItemIdMatch(uint32 toy) const;
+    HeirloomEntry const* GetHeirloomByItemId(uint32 itemId) const;
 
 private:
     StorageMap _stores;
@@ -197,11 +214,14 @@ private:
     MountContainer _mountsBySpellId;
     MountCapabilitiesByTypeContainer _mountCapabilitiesByType;
     NameGenContainer _nameGenData;
+    NameValidationRegexContainer _nameValidators;
     PhaseGroupContainer _phasesByGroup;
     QuestPackageItemContainer _questPackages;
     SpecializationSpellsContainer _specializationSpellsBySpec;
     SpellPowerContainer _spellPowers;
     SpellPowerDifficultyContainer _spellPowerDifficulties;
+    ToyItemIdsContainer _toys;
+    HeirloomItemsContainer _heirlooms;
 };
 
 #define sDB2Manager DB2Manager::Instance()

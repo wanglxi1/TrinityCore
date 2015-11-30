@@ -38,6 +38,14 @@ namespace WorldPackets
             int32 SpellID = 0;
         };
 
+        class CancelAutoRepeatSpell final : public ClientPacket
+        {
+        public:
+            CancelAutoRepeatSpell(WorldPacket&& packet) : ClientPacket(CMSG_CANCEL_AUTO_REPEAT_SPELL, std::move(packet)) { }
+
+            void Read() override { }
+        };
+
         class CancelGrowthAura final : public ClientPacket
         {
         public:
@@ -512,6 +520,8 @@ namespace WorldPackets
             int32 RecoveryTime = 0;
             int32 CategoryRecoveryTime = 0;
             bool OnHold = false;
+            Optional<uint32> unused622_1;   ///< This field is not used for anything in the client in 6.2.2.20444
+            Optional<uint32> unused622_2;   ///< This field is not used for anything in the client in 6.2.2.20444
         };
 
         class SendSpellHistory final : public ServerPacket
@@ -604,6 +614,19 @@ namespace WorldPackets
 
             ObjectGuid Source;
             int32 SpellVisualID = 0;
+        };
+
+        class PlaySpellVisualKit final : public ServerPacket
+        {
+        public:
+            PlaySpellVisualKit() : ServerPacket(SMSG_PLAY_SPELL_VISUAL_KIT, 16 + 4 + 4 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Unit;
+            int32 KitRecID = 0;
+            int32 KitType = 0;
+            uint32 Duration = 0;
         };
 
         class CancelCast final : public ClientPacket
@@ -784,5 +807,6 @@ namespace WorldPackets
 }
 
 ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Spells::SpellCastLogData const& spellCastLogData);
+ByteBuffer& operator>>(ByteBuffer& buffer, WorldPackets::Spells::SpellCastRequest& request);
 
 #endif // SpellPackets_h__

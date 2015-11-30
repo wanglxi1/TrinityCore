@@ -2038,6 +2038,8 @@ uint32 UnitUpdateFieldFlags[PLAYER_END] =
     UF_FLAG_PRIVATE,                                        // PLAYER__FIELD_KNOWN_TITLES+7
     UF_FLAG_PRIVATE,                                        // PLAYER__FIELD_KNOWN_TITLES+8
     UF_FLAG_PRIVATE,                                        // PLAYER__FIELD_KNOWN_TITLES+9
+    UF_FLAG_PRIVATE,                                        // PLAYER__FIELD_KNOWN_TITLES+10
+    UF_FLAG_PRIVATE,                                        // PLAYER__FIELD_KNOWN_TITLES+11
     UF_FLAG_PRIVATE,                                        // PLAYER_FIELD_COINAGE
     UF_FLAG_PRIVATE,                                        // PLAYER_FIELD_COINAGE+1
     UF_FLAG_PRIVATE,                                        // PLAYER_XP

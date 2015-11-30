@@ -26,6 +26,7 @@
 #include "Unit.h"
 #include "Player.h"
 #include "Weather.h"
+#include "CollectionMgr.h"
 
 namespace WorldPackets
 {
@@ -676,6 +677,28 @@ namespace WorldPackets
             uint16 AnimKitID = 0;
         };
 
+        class SetMovementAnimKit final : public ServerPacket
+        {
+        public:
+            SetMovementAnimKit() : ServerPacket(SMSG_SET_MOVEMENT_ANIM_KIT, 16 + 2) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Unit;
+            uint16 AnimKitID = 0;
+        };
+
+        class SetMeleeAnimKit final : public ServerPacket
+        {
+        public:
+            SetMeleeAnimKit() : ServerPacket(SMSG_SET_MELEE_ANIM_KIT, 16 + 2) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Unit;
+            uint16 AnimKitID = 0;
+        };
+
         class SetPlayHoverAnim final : public ServerPacket
         {
         public:
@@ -711,6 +734,31 @@ namespace WorldPackets
             void Read() override;
 
             bool EnablePVP = false;
+        };
+
+        class WorldTeleport final : public ClientPacket
+        {
+        public:
+            WorldTeleport(WorldPacket&& packet) : ClientPacket(CMSG_WORLD_TELEPORT, std::move(packet)) { }
+
+            void Read() override;
+
+            uint32 MapID = 0;
+            ObjectGuid TransportGUID;
+            G3D::Vector3 Pos;
+            float Facing = 0.0f;
+        };
+
+        class AccountHeirloomUpdate final : public ServerPacket
+        {
+        public:
+            AccountHeirloomUpdate() : ServerPacket(SMSG_ACCOUNT_HEIRLOOM_UPDATE) { }
+
+            WorldPacket const* Write() override;
+
+            bool IsFullUpdate = false;
+            HeirloomContainer const* Heirlooms = nullptr;
+            int32 Unk = 0;
         };
     }
 }

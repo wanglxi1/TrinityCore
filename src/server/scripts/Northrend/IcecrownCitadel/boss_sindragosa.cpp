@@ -168,7 +168,7 @@ class FrostwyrmLandEvent : public BasicEvent
     public:
         FrostwyrmLandEvent(Creature& owner, Position const& dest) : _owner(owner), _dest(dest) { }
 
-        bool Execute(uint64 /*eventTime*/, uint32 /*updateTime*/)
+        bool Execute(uint64 /*eventTime*/, uint32 /*updateTime*/) override
         {
             _owner.GetMotionMaster()->MoveLand(POINT_FROSTWYRM_LAND, _dest);
             return true;
@@ -184,7 +184,7 @@ class FrostBombExplosion : public BasicEvent
     public:
         FrostBombExplosion(Creature* owner, ObjectGuid sindragosaGUID) : _owner(owner), _sindragosaGUID(sindragosaGUID) { }
 
-        bool Execute(uint64 /*eventTime*/, uint32 /*updateTime*/)
+        bool Execute(uint64 /*eventTime*/, uint32 /*updateTime*/) override
         {
             _owner->CastSpell((Unit*)NULL, SPELL_FROST_BOMB, false, NULL, NULL, _sindragosaGUID);
             _owner->RemoveAurasDueToSpell(SPELL_FROST_BOMB_VISUAL);
@@ -1093,7 +1093,7 @@ class spell_sindragosa_s_fury : public SpellScriptLoader
 
                 SpellNonMeleeDamage damageInfo(GetCaster(), GetHitUnit(), GetSpellInfo()->Id, GetSpellInfo()->SchoolMask);
                 damageInfo.damage = damage;
-                damageInfo.damage = GetCaster()->DealSpellDamage(&damageInfo, false);
+                GetCaster()->DealSpellDamage(&damageInfo, false);
                 GetCaster()->SendSpellNonMeleeDamageLog(&damageInfo);
             }
 

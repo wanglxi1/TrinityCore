@@ -532,6 +532,22 @@ WorldPacket const* WorldPackets::Misc::SetAIAnimKit::Write()
     return &_worldPacket;
 }
 
+WorldPacket const* WorldPackets::Misc::SetMovementAnimKit::Write()
+{
+    _worldPacket << Unit;
+    _worldPacket << uint16(AnimKitID);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Misc::SetMeleeAnimKit::Write()
+{
+    _worldPacket << Unit;
+    _worldPacket << uint16(AnimKitID);
+
+    return &_worldPacket;
+}
+
 WorldPacket const* WorldPackets::Misc::SetPlayHoverAnim::Write()
 {
     _worldPacket << UnitGUID;
@@ -544,4 +560,32 @@ WorldPacket const* WorldPackets::Misc::SetPlayHoverAnim::Write()
 void WorldPackets::Misc::SetPvP::Read()
 {
     EnablePVP = _worldPacket.ReadBit();
+}
+
+void WorldPackets::Misc::WorldTeleport::Read()
+{
+    _worldPacket >> MapID;
+    _worldPacket >> TransportGUID;
+    _worldPacket >> Pos;
+    _worldPacket >> Facing;
+}
+
+WorldPacket const* WorldPackets::Misc::AccountHeirloomUpdate::Write()
+{
+    _worldPacket.WriteBit(IsFullUpdate);
+    _worldPacket.FlushBits();
+
+    _worldPacket << int32(Unk);
+
+    // both lists have to have the same size
+    _worldPacket << int32(Heirlooms->size());
+    _worldPacket << int32(Heirlooms->size());
+
+    for (auto const& item : *Heirlooms)
+        _worldPacket << uint32(item.first);
+
+    for (auto const& flags : *Heirlooms)
+        _worldPacket << uint32(flags.second.flags);
+
+    return &_worldPacket;
 }

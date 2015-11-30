@@ -30,6 +30,7 @@
 #include "Opcodes.h"
 #include "WorldSession.h"
 #include "ItemPackets.h"
+#include "TradeData.h"
 
 void AddItemsSetItem(Player* player, Item* item)
 {
@@ -351,6 +352,10 @@ void Item::SaveToDB(SQLTransaction& trans)
             stmt->setUInt32(++index, GetModifier(ITEM_MODIFIER_TRANSMOG_ITEM_ID) | (GetModifier(ITEM_MODIFIER_TRANSMOG_APPEARANCE_MOD) << 24));
             stmt->setUInt32(++index, GetModifier(ITEM_MODIFIER_UPGRADE_ID));
             stmt->setUInt32(++index, GetModifier(ITEM_MODIFIER_ENCHANT_ILLUSION));
+            stmt->setUInt32(++index, GetModifier(ITEM_MODIFIER_BATTLE_PET_SPECIES_ID));
+            stmt->setUInt32(++index, GetModifier(ITEM_MODIFIER_BATTLE_PET_BREED_DATA));
+            stmt->setUInt32(++index, GetModifier(ITEM_MODIFIER_BATTLE_PET_LEVEL));
+            stmt->setUInt32(++index, GetModifier(ITEM_MODIFIER_BATTLE_PET_DISPLAY_ID));
 
             std::ostringstream bonusListIDs;
             for (uint32 bonusListID : GetDynamicValues(ITEM_DYNAMIC_FIELD_BONUSLIST_IDS))
@@ -405,8 +410,10 @@ void Item::SaveToDB(SQLTransaction& trans)
 
 bool Item::LoadFromDB(ObjectGuid::LowType guid, ObjectGuid ownerGuid, Field* fields, uint32 entry)
 {
-    //                                             0          1            2                3      4         5        6      7             8                 9          10          11    12                  13         14               15            16
-    //result = CharacterDatabase.PQuery("SELECT guid, itemEntry, creatorGuid, giftCreatorGuid, count, duration, charges, flags, enchantments, randomPropertyId, durability, playedTime, text, transmogrification, upgradeId, enchantIllusion, bonusListIDs FROM item_instance WHERE guid = '%u'", guid);
+    //                                             0          1            2                3      4         5        6      7             8                 9          10          11    12
+    //result = CharacterDatabase.PQuery("SELECT guid, itemEntry, creatorGuid, giftCreatorGuid, count, duration, charges, flags, enchantments, randomPropertyId, durability, playedTime, text,
+    //                                                          13         14               15                  16                  17              18                  19            20
+    //                                          transmogrification, upgradeId, enchantIllusion, battlePetSpeciesId, battlePetBreedData, battlePetLevel, battlePetDisplayId, bonusListIDs FROM item_instance WHERE guid = '%u'", guid);
 
     // create item before any checks for store correct guid
     // and allow use "FSetState(ITEM_REMOVED); SaveToDB();" for deleting item from DB
@@ -482,8 +489,12 @@ bool Item::LoadFromDB(ObjectGuid::LowType guid, ObjectGuid ownerGuid, Field* fie
     }
     SetModifier(ITEM_MODIFIER_UPGRADE_ID, fields[14].GetUInt32());
     SetModifier(ITEM_MODIFIER_ENCHANT_ILLUSION, fields[15].GetUInt32());
+    SetModifier(ITEM_MODIFIER_BATTLE_PET_SPECIES_ID, fields[16].GetUInt32());
+    SetModifier(ITEM_MODIFIER_BATTLE_PET_BREED_DATA, fields[17].GetUInt32());
+    SetModifier(ITEM_MODIFIER_BATTLE_PET_LEVEL, fields[18].GetUInt16());
+    SetModifier(ITEM_MODIFIER_BATTLE_PET_DISPLAY_ID, fields[19].GetUInt32());
 
-    Tokenizer bonusListIDs(fields[16].GetString(), ' ');
+    Tokenizer bonusListIDs(fields[20].GetString(), ' ');
     for (char const* token : bonusListIDs)
     {
         uint32 bonusListID = atoul(token);
@@ -780,6 +791,22 @@ bool Item::CanBeTraded(bool mail, bool trade) const
     return true;
 }
 
+void Item::SetCount(uint32 value)
+{
+    SetUInt32Value(ITEM_FIELD_STACK_COUNT, value);
+
+    if (Player* player = GetOwner())
+    {
+        if (TradeData* tradeData = player->GetTradeData())
+        {
+            TradeSlots slot = tradeData->GetTradeSlotForItem(GetGUID());
+
+            if (slot != TRADE_SLOT_INVALID)
+                tradeData->SetItem(slot, this, true);
+        }
+    }
+}
+
 bool Item::HasEnchantRequiredSkill(const Player* player) const
 {
     // Check all enchants for required skill
@@ -1059,7 +1086,7 @@ Item* Item::CreateItem(uint32 itemEntry, uint32 count, Player const* player)
             delete item;
     }
     else
-        ASSERT(false);
+        ABORT();
     return NULL;
 }
 
@@ -1214,6 +1241,10 @@ void Item::SetNotRefundable(Player* owner, bool changestate /*=true*/, SQLTransa
     if (!HasFlag(ITEM_FIELD_FLAGS, ITEM_FIELD_FLAG_REFUNDABLE))
         return;
 
+    WorldPackets::Item::ItemExpirePurchaseRefund itemExpirePurchaseRefund;
+    itemExpirePurchaseRefund.ItemGUID = GetGUID();
+    owner->SendDirectMessage(itemExpirePurchaseRefund.Write());
+
     RemoveFlag(ITEM_FIELD_FLAGS, ITEM_FIELD_FLAG_REFUNDABLE);
     // Following is not applicable in the trading procedure
     if (changestate)
@@ -1298,10 +1329,9 @@ bool Item::CheckSoulboundTradeExpire()
     return false;
 }
 
-bool Item::CanBeTransmogrified() const
+bool Item::CanBeTransmogrified(WorldPackets::Item::ItemInstance const& transmogrifier, BonusData const* bonus)
 {
-    ItemTemplate const* proto = GetTemplate();
-
+    ItemTemplate const* proto = sObjectMgr->GetItemTemplate(transmogrifier.ItemID);
     if (!proto)
         return false;
 
@@ -1318,7 +1348,7 @@ bool Item::CanBeTransmogrified() const
     if (proto->GetFlags2() & ITEM_FLAG2_CANNOT_BE_TRANSMOG)
         return false;
 
-    if (!HasStats())
+    if (!HasStats(transmogrifier, bonus))
         return false;
 
     return true;
@@ -1327,7 +1357,6 @@ bool Item::CanBeTransmogrified() const
 bool Item::CanTransmogrify() const
 {
     ItemTemplate const* proto = GetTemplate();
-
     if (!proto)
         return false;
 
@@ -1353,18 +1382,41 @@ bool Item::CanTransmogrify() const
     return true;
 }
 
-bool Item::CanTransmogrifyItemWithItem(Item const* transmogrified, Item const* transmogrifier)
+bool Item::HasStats() const
 {
-    if (!transmogrifier || !transmogrified)
-        return false;
+    if (GetItemRandomPropertyId() != 0)
+        return true;
 
-    ItemTemplate const* proto1 = transmogrifier->GetTemplate(); // source
+    ItemTemplate const* proto = GetTemplate();
+    Player const* owner = GetOwner();
+    for (uint8 i = 0; i < MAX_ITEM_PROTO_STATS; ++i)
+        if ((owner ? GetItemStatValue(i, owner) : proto->GetItemStatValue(i)) != 0)
+            return true;
+
+    return false;
+}
+
+bool Item::HasStats(WorldPackets::Item::ItemInstance const& itemInstance, BonusData const* bonus)
+{
+    if (itemInstance.RandomPropertiesID != 0)
+        return true;
+
+    for (uint8 i = 0; i < MAX_ITEM_PROTO_STATS; ++i)
+        if (bonus->ItemStatValue[i] != 0)
+            return true;
+
+    return false;
+}
+
+bool Item::CanTransmogrifyItemWithItem(Item const* transmogrified, WorldPackets::Item::ItemInstance const& transmogrifier, BonusData const* bonus)
+{
+    ItemTemplate const* proto1 = sObjectMgr->GetItemTemplate(transmogrifier.ItemID); // source
     ItemTemplate const* proto2 = transmogrified->GetTemplate(); // dest
 
-    if (proto1->GetId() == proto2->GetId())
+    if (sDB2Manager.GetItemDisplayId(proto1->GetId(), bonus->AppearanceModID) == transmogrified->GetDisplayId())
         return false;
 
-    if (!transmogrified->CanTransmogrify() || !transmogrifier->CanBeTransmogrified())
+    if (!transmogrified->CanTransmogrify() || !CanBeTransmogrified(transmogrifier, bonus))
         return false;
 
     if (proto1->GetInventoryType() == INVTYPE_BAG ||
@@ -1385,19 +1437,6 @@ bool Item::CanTransmogrifyItemWithItem(Item const* transmogrified, Item const* t
         return false;
 
     return true;
-}
-
-bool Item::HasStats() const
-{
-    if (GetItemRandomPropertyId() != 0)
-        return true;
-
-    ItemTemplate const* proto = GetTemplate();
-    for (uint8 i = 0; i < MAX_ITEM_PROTO_STATS; ++i)
-        if (proto->GetItemStatValue(i) != 0)
-            return true;
-
-    return false;
 }
 
 // used by mail items, transmog cost, stationeryinfo and others
@@ -1737,7 +1776,7 @@ uint32 Item::GetItemLevel(Player const* owner) const
         return MIN_ITEM_LEVEL;
 
     uint32 itemLevel = stats->GetBaseItemLevel();
-    if (ScalingStatDistributionEntry const* ssd = sScalingStatDistributionStore.LookupEntry(stats->GetScalingStatDistribution()))
+    if (ScalingStatDistributionEntry const* ssd = sScalingStatDistributionStore.LookupEntry(GetScalingStatDistribution()))
         if (uint32 heirloomIlvl = sDB2Manager.GetHeirloomItemLevel(ssd->ItemLevelCurveID, owner->getLevel()))
             itemLevel = heirloomIlvl;
 
@@ -1784,8 +1823,8 @@ uint32 Item::GetVisibleEntry() const
 
 uint32 Item::GetVisibleAppearanceModId() const
 {
-    if (uint32 transmogMod = GetModifier(ITEM_MODIFIER_TRANSMOG_APPEARANCE_MOD))
-        return transmogMod;
+    if (GetModifier(ITEM_MODIFIER_TRANSMOG_ITEM_ID))
+        return GetModifier(ITEM_MODIFIER_TRANSMOG_APPEARANCE_MOD);
 
     return GetAppearanceModId();
 }
@@ -1821,6 +1860,23 @@ void BonusData::Initialize(ItemTemplate const* proto)
         SocketColor[i] = proto->GetSocketColor(i);
 
     AppearanceModID = 0;
+    RepairCostMultiplier = 1.0f;
+    ScalingStatDistribution = proto->GetScalingStatDistribution();
+}
+
+void BonusData::Initialize(WorldPackets::Item::ItemInstance const& itemInstance)
+{
+    ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemInstance.ItemID);
+    if (!proto)
+        return;
+
+    Initialize(proto);
+
+    if (itemInstance.ItemBonus)
+        for (uint32 bonusListID : itemInstance.ItemBonus->BonusListIDs)
+            if (DB2Manager::ItemBonusList const* bonuses = sDB2Manager.GetItemBonusList(bonusListID))
+                for (ItemBonusEntry const* bonus : *bonuses)
+                    AddBonus(bonus->Type, bonus->Value);
 }
 
 void BonusData::AddBonus(uint32 type, int32 const (&values)[2])
@@ -1867,6 +1923,12 @@ void BonusData::AddBonus(uint32 type, int32 const (&values)[2])
             break;
         case ITEM_BONUS_REQUIRED_LEVEL:
             RequiredLevel += values[0];
+            break;
+        case ITEM_BONUS_REPAIR_COST_MULTIPLIER:
+            RepairCostMultiplier *= static_cast<float>(values[0]) * 0.01f;
+            break;
+        case ITEM_BONUS_SCALING_STAT_DISTRIBUTION:
+            ScalingStatDistribution = static_cast<uint32>(values[0]);
             break;
     }
 }

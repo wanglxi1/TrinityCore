@@ -554,7 +554,13 @@ ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::Spells::SpellHistoryEntry
     data << uint32(historyEntry.Category);
     data << int32(historyEntry.RecoveryTime);
     data << int32(historyEntry.CategoryRecoveryTime);
+    data.WriteBit(historyEntry.unused622_1.is_initialized());
+    data.WriteBit(historyEntry.unused622_2.is_initialized());
     data.WriteBit(historyEntry.OnHold);
+    if (historyEntry.unused622_1)
+        data << uint32(*historyEntry.unused622_1);
+    if (historyEntry.unused622_2)
+        data << uint32(*historyEntry.unused622_2);
     data.FlushBits();
 
     return data;
@@ -632,6 +638,16 @@ WorldPacket const* WorldPackets::Spells::CancelSpellVisual::Write()
 {
     _worldPacket << Source;
     _worldPacket << int32(SpellVisualID);
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::Spells::PlaySpellVisualKit::Write()
+{
+    _worldPacket << Unit;
+    _worldPacket << int32(KitRecID);
+    _worldPacket << int32(KitType);
+    _worldPacket << uint32(Duration);
 
     return &_worldPacket;
 }

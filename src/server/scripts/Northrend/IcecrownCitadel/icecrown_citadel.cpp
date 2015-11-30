@@ -365,7 +365,7 @@ class CaptainSurviveTalk : public BasicEvent
     public:
         explicit CaptainSurviveTalk(Creature const& owner) : _owner(owner) { }
 
-        bool Execute(uint64 /*currTime*/, uint32 /*diff*/)
+        bool Execute(uint64 /*currTime*/, uint32 /*diff*/) override
         {
             _owner.AI()->Talk(SAY_CAPTAIN_SURVIVE_TALK);
             return true;
@@ -1140,7 +1140,7 @@ class npc_crok_scourgebane : public CreatureScript
                 }
             }
 
-            void UpdateEscortAI(uint32 const diff) override
+            void UpdateEscortAI(uint32 diff) override
             {
                 if (_wipeCheckTimer <= diff)
                     _wipeCheckTimer = 0;

@@ -21,6 +21,7 @@
 #include "Packet.h"
 #include "SharedDefines.h"
 #include "ObjectGuid.h"
+#include "PacketUtilities.h"
 
 class WorldObject;
 
@@ -258,11 +259,16 @@ namespace WorldPackets
         class ChatRegisterAddonPrefixes final : public ClientPacket
         {
         public:
+            enum
+            {
+                MAX_PREFIXES = 64
+            };
+
             ChatRegisterAddonPrefixes(WorldPacket&& packet) : ClientPacket(CMSG_CHAT_REGISTER_ADDON_PREFIXES, std::move(packet)) { }
 
             void Read() override;
 
-            std::vector<std::string> Prefixes;
+            Array<std::string, MAX_PREFIXES> Prefixes;
         };
 
         class ChatUnregisterAllAddonPrefixes final : public ClientPacket
@@ -282,6 +288,17 @@ namespace WorldPackets
 
             int32 ZoneID = 0;
             std::string MessageText;
+        };
+
+        class ChatReportIgnored final : public ClientPacket
+        {
+        public:
+            ChatReportIgnored(WorldPacket&& packet) : ClientPacket(CMSG_CHAT_REPORT_IGNORED, std::move(packet)) { }
+
+            void Read() override;
+
+            ObjectGuid IgnoredGUID;
+            uint8 Reason = 0;
         };
     }
 }
